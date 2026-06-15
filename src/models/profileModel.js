@@ -15,22 +15,22 @@ const calculateTier = (activityScore, influenceScore, followers, publicRepos) =>
   let tier, badge, emoji, description;
 
   if (combinedScore >= 95) {
-    tier = 'LEGEND';       badge = '👑 Legend';       emoji = '👑';
+    tier = 'LEGEND';       badge = 'Legend';       emoji = '👑';
     description = 'An iconic developer with massive global impact.';
   } else if (combinedScore >= 80) {
-    tier = 'EXPERT';       badge = '🚀 Expert';       emoji = '🚀';
+    tier = 'EXPERT';       badge = 'Expert';       emoji = '🚀';
     description = 'Highly experienced developer with strong community presence.';
   } else if (combinedScore >= 60) {
-    tier = 'ADVANCED';     badge = '💎 Advanced';     emoji = '💎';
+    tier = 'ADVANCED';     badge = 'Advanced';     emoji = '💎';
     description = 'Skilled developer with notable open source contributions.';
   } else if (combinedScore >= 40) {
-    tier = 'INTERMEDIATE'; badge = '🔥 Intermediate'; emoji = '🔥';
+    tier = 'INTERMEDIATE'; badge = 'Intermediate'; emoji = '🔥';
     description = 'Growing developer with solid GitHub activity.';
   } else if (combinedScore >= 20) {
-    tier = 'RISING_STAR';  badge = '⚡ Rising Star';  emoji = '⚡';
+    tier = 'RISING_STAR';  badge = 'Rising Star';  emoji = '⚡';
     description = 'Up-and-coming developer showing promising progress.';
   } else {
-    tier = 'BEGINNER';     badge = '🌱 Beginner';     emoji = '🌱';
+    tier = 'BEGINNER';     badge = 'Beginner';     emoji = '🌱';
     description = 'Early stage developer just getting started.';
   }
 

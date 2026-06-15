@@ -4,9 +4,6 @@ const mysql = require('mysql2/promise');
 const DB_NAME = process.env.DB_NAME || 'github_analyzer';
 
 const schema = `
--- Create database
-CREATE DATABASE IF NOT EXISTS \`${DB_NAME}\`;
-USE \`${DB_NAME}\`;
 
 -- Main profiles table
 CREATE TABLE IF NOT EXISTS github_profiles (
@@ -93,20 +90,23 @@ CREATE TABLE IF NOT EXISTS profile_languages (
 async function setupDatabase() {
   let connection;
   try {
-    // Connect without specifying DB first (to create it if needed)
+    // Connect directly to the target database (supports local and cloud MySQL)
     connection = await mysql.createConnection({
-      host:     process.env.DB_HOST || 'localhost',
-      port:     process.env.DB_PORT || 3306,
-      user:     process.env.DB_USER || 'root',
-      password: process.env.DB_PASSWORD || '',
-      multipleStatements: true
+      host:               process.env.DB_HOST || 'localhost',
+      port:               process.env.DB_PORT || 3306,
+      user:               process.env.DB_USER || 'root',
+      password:           process.env.DB_PASSWORD || '',
+      database:           process.env.DB_NAME || 'github_analyzer',
+      multipleStatements: true,
+      charset:            'utf8'
     });
 
     console.log('🔌 Connected to MySQL server...');
+    await connection.query('SET NAMES utf8');
     await connection.query(schema);
-    console.log('✅ Database and tables created successfully!');
+    console.log('✅ Tables created successfully!');
     console.log(`📦 Database: ${DB_NAME}`);
-    console.log('📋 Tables created:');
+    console.log('📋 Tables:');
     console.log('   - github_profiles');
     console.log('   - github_repositories');
     console.log('   - profile_insights');
