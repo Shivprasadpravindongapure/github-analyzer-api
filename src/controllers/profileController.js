@@ -1,8 +1,10 @@
 const { fetchUserProfile, fetchUserRepos, getRateLimit } = require('../services/githubService');
 const {
   upsertProfile, getAllProfiles, getProfileByUsername,
-  deleteProfile, getStats, compareProfiles
+  deleteProfile, getStats, compareProfiles,
+  getProfilesByTier, isProfileStale
 } = require('../models/profileModel');
+
 
 /**
  * POST /api/analyze/:username
@@ -11,22 +13,33 @@ const {
 const analyzeProfile = async (req, res, next) => {
   try {
     const { username } = req.params;
+    const force = req.query.force === 'true';
 
-    // Fetch from GitHub API
+    // Smart cache: skip GitHub API if analyzed within last 60 min (unless ?force=true)
+    const stale = await isProfileStale(username);
+    if (stale === false && !force) {
+      const cachedProfile = await getProfileByUsername(username);
+      return res.status(200).json({
+        success: true,
+        message: `Returning cached profile for '${username}'. Use ?force=true to force refresh.`,
+        cached: true,
+        data: cachedProfile
+      });
+    }
+
+    // Fetch fresh data from GitHub API
     const [profileData, repos] = await Promise.all([
       fetchUserProfile(username),
       fetchUserRepos(username)
     ]);
 
-    // Save to database
-    const profileId = await upsertProfile(profileData, repos);
-
-    // Get the saved profile with insights to return
+    await upsertProfile(profileData, repos);
     const savedProfile = await getProfileByUsername(profileData.login);
 
     res.status(200).json({
       success: true,
       message: `Profile for '${username}' analyzed and stored successfully.`,
+      cached: false,
       data: savedProfile
     });
   } catch (error) {
@@ -182,7 +195,111 @@ const checkRateLimit = async (req, res, next) => {
   }
 };
 
+/**
+ * POST /api/analyze/batch
+ * Analyze multiple GitHub profiles in one request
+ */
+const batchAnalyze = async (req, res, next) => {
+  try {
+    const { usernames } = req.body;
+    if (!usernames || !Array.isArray(usernames) || usernames.length === 0) {
+      return res.status(400).json({
+        success: false,
+        message: 'Provide a JSON body: { "usernames": ["user1", "user2", ...] }'
+      });
+    }
+    if (usernames.length > 10) {
+      return res.status(400).json({
+        success: false,
+        message: 'Maximum 10 usernames allowed per batch request.'
+      });
+    }
+
+    const results = [];
+    const errors  = [];
+
+    for (const username of usernames) {
+      try {
+        const [profileData, repos] = await Promise.all([
+          fetchUserProfile(username),
+          fetchUserRepos(username)
+        ]);
+        await upsertProfile(profileData, repos);
+        const saved = await getProfileByUsername(profileData.login);
+        results.push({
+          username,
+          status: 'success',
+          tier: saved.developer_badge,
+          followers: saved.followers,
+          total_stars_received: saved.total_stars_received
+        });
+      } catch (err) {
+        errors.push({ username, status: 'failed', reason: err.message });
+      }
+    }
+
+    res.status(200).json({
+      success: true,
+      message: `Batch complete: ${results.length} succeeded, ${errors.length} failed.`,
+      analyzed: results,
+      failed: errors.length > 0 ? errors : undefined
+    });
+  } catch (error) {
+    next(error);
+  }
+};
+
+/**
+ * PUT /api/profiles/:username/refresh
+ * Force re-fetch a profile from GitHub
+ */
+const refreshProfile = async (req, res, next) => {
+  try {
+    const { username } = req.params;
+    const existing = await getProfileByUsername(username);
+    if (!existing) {
+      return res.status(404).json({
+        success: false,
+        message: `Profile '${username}' not found. Use POST /api/analyze/${username} first.`
+      });
+    }
+    const [profileData, repos] = await Promise.all([
+      fetchUserProfile(username),
+      fetchUserRepos(username)
+    ]);
+    await upsertProfile(profileData, repos);
+    const refreshed = await getProfileByUsername(profileData.login);
+    res.status(200).json({
+      success: true,
+      message: `Profile '${username}' refreshed from GitHub successfully.`,
+      data: refreshed
+    });
+  } catch (error) {
+    next(error);
+  }
+};
+
+/**
+ * GET /api/profiles/tier/:tier
+ * Get all profiles filtered by developer tier
+ */
+const getByTier = async (req, res, next) => {
+  try {
+    const { tier } = req.params;
+    const profiles = await getProfilesByTier(tier);
+    res.status(200).json({
+      success: true,
+      tier: tier.toUpperCase(),
+      total: profiles.length,
+      data: profiles
+    });
+  } catch (error) {
+    next(error);
+  }
+};
+
 module.exports = {
   analyzeProfile, listProfiles, getProfile,
-  removeProfile, getOverallStats, compareGitHubProfiles, checkRateLimit
+  removeProfile, getOverallStats, compareGitHubProfiles,
+  checkRateLimit, batchAnalyze, refreshProfile, getByTier
 };

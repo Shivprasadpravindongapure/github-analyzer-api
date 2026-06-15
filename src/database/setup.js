@@ -70,8 +70,13 @@ CREATE TABLE IF NOT EXISTS profile_insights (
   account_age_days          INT DEFAULT 0,
   activity_score            DECIMAL(5,2) DEFAULT 0,
   influence_score           DECIMAL(5,2) DEFAULT 0,
+  combined_score            DECIMAL(5,2) DEFAULT 0,
+  developer_tier            VARCHAR(50) DEFAULT 'BEGINNER',
+  developer_badge           VARCHAR(100),
+  tier_description          TEXT,
   FOREIGN KEY (profile_id) REFERENCES github_profiles(id) ON DELETE CASCADE,
-  INDEX idx_profile_id (profile_id)
+  INDEX idx_profile_id (profile_id),
+  INDEX idx_tier (developer_tier)
 );
 
 -- Language breakdown table

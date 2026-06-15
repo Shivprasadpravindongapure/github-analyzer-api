@@ -1,166 +1,200 @@
 {
   "info": {
     "name": "GitHub Profile Analyzer API",
-    "description": "A backend service that analyzes GitHub user profiles and stores insights in MySQL.",
-    "_postman_id": "github-profile-analyzer-v1",
+    "description": "Backend API — Node.js + Express.js + MySQL + GitHub API\n\nFeatures:\n- Analyze any GitHub profile by username\n- Developer Tier & Badge System (Beginner → Legend)\n- Batch analyze up to 10 profiles in one call\n- Smart caching (60 min)\n- Compare profiles side-by-side\n- Filter by developer tier\n- Overall analytics & stats",
+    "_postman_id": "github-profile-analyzer-v2",
     "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
   },
   "variable": [
-    {
-      "key": "baseUrl",
-      "value": "http://localhost:3000",
-      "type": "string"
-    }
+    { "key": "baseUrl", "value": "http://localhost:3000", "type": "string" }
   ],
   "item": [
     {
       "name": "🏠 Health Check",
       "request": {
         "method": "GET",
-        "header": [],
-        "url": {
-          "raw": "{{baseUrl}}/",
-          "host": ["{{baseUrl}}"],
-          "path": [""]
-        },
-        "description": "Check if the API server is running"
+        "url": { "raw": "{{baseUrl}}/", "host": ["{{baseUrl}}"], "path": [""] },
+        "description": "Check if the API server is running and see all available endpoints"
       }
     },
     {
-      "name": "🔍 Analyze GitHub Profile",
-      "request": {
-        "method": "POST",
-        "header": [],
-        "url": {
-          "raw": "{{baseUrl}}/api/analyze/torvalds",
-          "host": ["{{baseUrl}}"],
-          "path": ["api", "analyze", "torvalds"]
+      "name": "── ANALYZE ──",
+      "item": [
+        {
+          "name": "🔍 Analyze Profile (Smart Cache)",
+          "request": {
+            "method": "POST",
+            "url": {
+              "raw": "{{baseUrl}}/api/analyze/torvalds",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "analyze", "torvalds"]
+            },
+            "description": "Fetch and store a GitHub profile. Returns cached data if analyzed within last 60 minutes. Add ?force=true to bypass cache."
+          }
         },
-        "description": "Fetch a GitHub user profile and store insights in the database. Replace 'torvalds' with any GitHub username."
-      }
-    },
-    {
-      "name": "📋 List All Profiles",
-      "request": {
-        "method": "GET",
-        "header": [],
-        "url": {
-          "raw": "{{baseUrl}}/api/profiles?page=1&limit=10&sort=analyzed_at&order=DESC",
-          "host": ["{{baseUrl}}"],
-          "path": ["api", "profiles"],
-          "query": [
-            { "key": "page", "value": "1", "description": "Page number" },
-            { "key": "limit", "value": "10", "description": "Results per page" },
-            { "key": "sort", "value": "analyzed_at", "description": "Sort by: analyzed_at, followers, public_repos, username" },
-            { "key": "order", "value": "DESC", "description": "Order: ASC or DESC" }
-          ]
+        {
+          "name": "🔍 Analyze Profile (Force Refresh)",
+          "request": {
+            "method": "POST",
+            "url": {
+              "raw": "{{baseUrl}}/api/analyze/torvalds?force=true",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "analyze", "torvalds"],
+              "query": [{ "key": "force", "value": "true" }]
+            },
+            "description": "Force re-fetch from GitHub API even if cached."
+          }
         },
-        "description": "Retrieve all stored profiles with pagination support"
-      }
-    },
-    {
-      "name": "👤 Get Single Profile",
-      "request": {
-        "method": "GET",
-        "header": [],
-        "url": {
-          "raw": "{{baseUrl}}/api/profiles/torvalds",
-          "host": ["{{baseUrl}}"],
-          "path": ["api", "profiles", "torvalds"]
-        },
-        "description": "Get full details and insights for a single stored profile"
-      }
-    },
-    {
-      "name": "🗑️ Delete Profile",
-      "request": {
-        "method": "DELETE",
-        "header": [],
-        "url": {
-          "raw": "{{baseUrl}}/api/profiles/torvalds",
-          "host": ["{{baseUrl}}"],
-          "path": ["api", "profiles", "torvalds"]
-        },
-        "description": "Delete a profile and all its related data from the database"
-      }
-    },
-    {
-      "name": "⚔️ Compare Profiles",
-      "request": {
-        "method": "GET",
-        "header": [],
-        "url": {
-          "raw": "{{baseUrl}}/api/profiles/compare?users=torvalds,gaearon,sindresorhus",
-          "host": ["{{baseUrl}}"],
-          "path": ["api", "profiles", "compare"],
-          "query": [
-            { "key": "users", "value": "torvalds,gaearon,sindresorhus", "description": "Comma-separated GitHub usernames (must be already analyzed)" }
-          ]
-        },
-        "description": "Compare multiple GitHub profiles side by side"
-      }
-    },
-    {
-      "name": "📊 Overall Stats",
-      "request": {
-        "method": "GET",
-        "header": [],
-        "url": {
-          "raw": "{{baseUrl}}/api/stats",
-          "host": ["{{baseUrl}}"],
-          "path": ["api", "stats"]
-        },
-        "description": "Get overall statistics: top users, top languages, total profiles analyzed"
-      }
-    },
-    {
-      "name": "⏱️ GitHub Rate Limit",
-      "request": {
-        "method": "GET",
-        "header": [],
-        "url": {
-          "raw": "{{baseUrl}}/api/rate-limit",
-          "host": ["{{baseUrl}}"],
-          "path": ["api", "rate-limit"]
-        },
-        "description": "Check remaining GitHub API rate limit"
-      }
-    },
-    {
-      "name": "🔍 Analyze - Linus Torvalds",
-      "request": {
-        "method": "POST",
-        "header": [],
-        "url": {
-          "raw": "{{baseUrl}}/api/analyze/torvalds",
-          "host": ["{{baseUrl}}"],
-          "path": ["api", "analyze", "torvalds"]
+        {
+          "name": "📦 Batch Analyze (Multiple Profiles)",
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"usernames\": [\"torvalds\", \"gaearon\", \"sindresorhus\", \"addyosmani\", \"tj\"]\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/analyze/batch",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "analyze", "batch"]
+            },
+            "description": "Analyze up to 10 GitHub profiles in a single API call. Returns tier/badge for each."
+          }
         }
-      }
+      ]
     },
     {
-      "name": "🔍 Analyze - Dan Abramov",
-      "request": {
-        "method": "POST",
-        "header": [],
-        "url": {
-          "raw": "{{baseUrl}}/api/analyze/gaearon",
-          "host": ["{{baseUrl}}"],
-          "path": ["api", "analyze", "gaearon"]
+      "name": "── PROFILES ──",
+      "item": [
+        {
+          "name": "📋 List All Profiles (Paginated)",
+          "request": {
+            "method": "GET",
+            "url": {
+              "raw": "{{baseUrl}}/api/profiles?page=1&limit=10&sort=analyzed_at&order=DESC",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "profiles"],
+              "query": [
+                { "key": "page", "value": "1" },
+                { "key": "limit", "value": "10" },
+                { "key": "sort", "value": "analyzed_at", "description": "Options: analyzed_at, followers, public_repos, username" },
+                { "key": "order", "value": "DESC", "description": "ASC or DESC" }
+              ]
+            }
+          }
+        },
+        {
+          "name": "👤 Get Single Profile (Full Details)",
+          "request": {
+            "method": "GET",
+            "url": {
+              "raw": "{{baseUrl}}/api/profiles/torvalds",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "profiles", "torvalds"]
+            },
+            "description": "Get full profile with insights, tier/badge, top repos, and language breakdown."
+          }
+        },
+        {
+          "name": "🔄 Refresh Profile from GitHub",
+          "request": {
+            "method": "PUT",
+            "url": {
+              "raw": "{{baseUrl}}/api/profiles/torvalds/refresh",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "profiles", "torvalds", "refresh"]
+            },
+            "description": "Force re-fetch and update a stored profile from GitHub."
+          }
+        },
+        {
+          "name": "🗑️ Delete Profile",
+          "request": {
+            "method": "DELETE",
+            "url": {
+              "raw": "{{baseUrl}}/api/profiles/torvalds",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "profiles", "torvalds"]
+            }
+          }
+        },
+        {
+          "name": "⚔️ Compare Profiles",
+          "request": {
+            "method": "GET",
+            "url": {
+              "raw": "{{baseUrl}}/api/profiles/compare?users=torvalds,gaearon,sindresorhus",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "profiles", "compare"],
+              "query": [{ "key": "users", "value": "torvalds,gaearon,sindresorhus" }]
+            },
+            "description": "Compare multiple profiles side-by-side including tier scores."
+          }
+        },
+        {
+          "name": "🏆 Filter by Tier — LEGEND",
+          "request": {
+            "method": "GET",
+            "url": {
+              "raw": "{{baseUrl}}/api/profiles/tier/LEGEND",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "profiles", "tier", "LEGEND"]
+            },
+            "description": "Get all profiles of a specific developer tier.\nTiers: BEGINNER, RISING_STAR, INTERMEDIATE, ADVANCED, EXPERT, LEGEND"
+          }
+        },
+        {
+          "name": "🏆 Filter by Tier — EXPERT",
+          "request": {
+            "method": "GET",
+            "url": {
+              "raw": "{{baseUrl}}/api/profiles/tier/EXPERT",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "profiles", "tier", "EXPERT"]
+            }
+          }
         }
-      }
+      ]
     },
     {
-      "name": "🔍 Analyze - Sindre Sorhus",
-      "request": {
-        "method": "POST",
-        "header": [],
-        "url": {
-          "raw": "{{baseUrl}}/api/analyze/sindresorhus",
-          "host": ["{{baseUrl}}"],
-          "path": ["api", "analyze", "sindresorhus"]
+      "name": "── ANALYTICS ──",
+      "item": [
+        {
+          "name": "📊 Overall Stats",
+          "request": {
+            "method": "GET",
+            "url": {
+              "raw": "{{baseUrl}}/api/stats",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "stats"]
+            },
+            "description": "Overall stats: total profiles, top users by stars, most used languages."
+          }
+        },
+        {
+          "name": "⏱️ GitHub Rate Limit",
+          "request": {
+            "method": "GET",
+            "url": {
+              "raw": "{{baseUrl}}/api/rate-limit",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "rate-limit"]
+            },
+            "description": "Check remaining GitHub API calls (5000/hour with token)."
+          }
         }
-      }
+      ]
+    },
+    {
+      "name": "── SAMPLE DATA ──",
+      "item": [
+        { "name": "Analyze Linus Torvalds", "request": { "method": "POST", "url": { "raw": "{{baseUrl}}/api/analyze/torvalds", "host": ["{{baseUrl}}"], "path": ["api","analyze","torvalds"] } } },
+        { "name": "Analyze Dan Abramov", "request": { "method": "POST", "url": { "raw": "{{baseUrl}}/api/analyze/gaearon", "host": ["{{baseUrl}}"], "path": ["api","analyze","gaearon"] } } },
+        { "name": "Analyze Sindre Sorhus", "request": { "method": "POST", "url": { "raw": "{{baseUrl}}/api/analyze/sindresorhus", "host": ["{{baseUrl}}"], "path": ["api","analyze","sindresorhus"] } } },
+        { "name": "Analyze Addy Osmani", "request": { "method": "POST", "url": { "raw": "{{baseUrl}}/api/analyze/addyosmani", "host": ["{{baseUrl}}"], "path": ["api","analyze","addyosmani"] } } },
+        { "name": "Analyze TJ Holowaychuk", "request": { "method": "POST", "url": { "raw": "{{baseUrl}}/api/analyze/tj", "host": ["{{baseUrl}}"], "path": ["api","analyze","tj"] } } }
+      ]
     }
   ]
 }

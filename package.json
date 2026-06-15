@@ -6,7 +6,8 @@
   "scripts": {
     "start": "node src/server.js",
     "dev": "nodemon src/server.js",
-    "setup-db": "node src/database/setup.js"
+    "setup-db": "node src/database/setup.js",
+    "migrate": "node src/database/migrate.js"
   },
   "keywords": ["github", "api", "nodejs", "express", "mysql"],
   "author": "",

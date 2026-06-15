@@ -1,6 +1,43 @@
 const { query } = require('../database/db');
 
 /**
+ * Calculate developer tier and badge based on scores
+ */
+const calculateTier = (activityScore, influenceScore, followers, publicRepos) => {
+  // Weighted combined score
+  const combinedScore = (
+    (parseFloat(activityScore) * 0.35) +
+    (parseFloat(influenceScore) * 0.35) +
+    (Math.min(100, followers / 100) * 0.20) +
+    (Math.min(100, publicRepos * 2) * 0.10)
+  );
+
+  let tier, badge, emoji, description;
+
+  if (combinedScore >= 95) {
+    tier = 'LEGEND';       badge = '👑 Legend';       emoji = '👑';
+    description = 'An iconic developer with massive global impact.';
+  } else if (combinedScore >= 80) {
+    tier = 'EXPERT';       badge = '🚀 Expert';       emoji = '🚀';
+    description = 'Highly experienced developer with strong community presence.';
+  } else if (combinedScore >= 60) {
+    tier = 'ADVANCED';     badge = '💎 Advanced';     emoji = '💎';
+    description = 'Skilled developer with notable open source contributions.';
+  } else if (combinedScore >= 40) {
+    tier = 'INTERMEDIATE'; badge = '🔥 Intermediate'; emoji = '🔥';
+    description = 'Growing developer with solid GitHub activity.';
+  } else if (combinedScore >= 20) {
+    tier = 'RISING_STAR';  badge = '⚡ Rising Star';  emoji = '⚡';
+    description = 'Up-and-coming developer showing promising progress.';
+  } else {
+    tier = 'BEGINNER';     badge = '🌱 Beginner';     emoji = '🌱';
+    description = 'Early stage developer just getting started.';
+  }
+
+  return { tier, badge, emoji, description, combinedScore: parseFloat(combinedScore.toFixed(2)) };
+};
+
+/**
  * Calculate insights from repos data
  */
 const calculateInsights = (repos, accountCreatedAt) => {
@@ -48,7 +85,8 @@ const calculateInsights = (repos, accountCreatedAt) => {
     accountAgeDays,
     activityScore: parseFloat(activityScore),
     influenceScore: parseFloat(influenceScore),
-    languageMap: langMap
+    languageMap: langMap,
+    tier: calculateTier(activityScore, influenceScore, 0, originalRepos.length)
   };
 };
 
@@ -104,15 +142,20 @@ const upsertProfile = async (profileData, repos) => {
     ]);
   }
 
-  // Calculate and upsert insights
+  // Calculate and upsert insights — pass real followers count for tier
   const insights = calculateInsights(repos, p.created_at);
+  const tier = calculateTier(
+    insights.activityScore, insights.influenceScore,
+    p.followers, p.public_repos
+  );
 
   await query(`
     INSERT INTO profile_insights
       (profile_id, top_language, language_diversity_count, total_stars_received,
        total_forks_received, original_repos_count, forked_repos_count,
-       avg_stars_per_repo, account_age_days, activity_score, influence_score)
-    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+       avg_stars_per_repo, account_age_days, activity_score, influence_score,
+       combined_score, developer_tier, developer_badge, tier_description)
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
     ON DUPLICATE KEY UPDATE
       top_language = VALUES(top_language),
       language_diversity_count = VALUES(language_diversity_count),
@@ -123,13 +166,18 @@ const upsertProfile = async (profileData, repos) => {
       avg_stars_per_repo = VALUES(avg_stars_per_repo),
       account_age_days = VALUES(account_age_days),
       activity_score = VALUES(activity_score),
-      influence_score = VALUES(influence_score)
+      influence_score = VALUES(influence_score),
+      combined_score = VALUES(combined_score),
+      developer_tier = VALUES(developer_tier),
+      developer_badge = VALUES(developer_badge),
+      tier_description = VALUES(tier_description)
   `, [
     profileId, insights.topLanguage, insights.languageDiversityCount,
     insights.totalStarsReceived, insights.totalForksReceived,
     insights.originalReposCount, insights.forkedReposCount,
     insights.avgStarsPerRepo, insights.accountAgeDays,
-    insights.activityScore, insights.influenceScore
+    insights.activityScore, insights.influenceScore,
+    tier.combinedScore, tier.tier, tier.badge, tier.description
   ]);
 
   // Upsert language breakdown
@@ -160,7 +208,8 @@ const getAllProfiles = async ({ page = 1, limit = 10, sort = 'analyzed_at', orde
       gp.id, gp.username, gp.name, gp.bio, gp.avatar_url, gp.profile_url,
       gp.location, gp.public_repos, gp.followers, gp.following,
       gp.analyzed_at,
-      pi.top_language, pi.total_stars_received, pi.activity_score, pi.influence_score
+      pi.top_language, pi.total_stars_received, pi.activity_score,
+      pi.influence_score, pi.developer_tier, pi.developer_badge, pi.combined_score
     FROM github_profiles gp
     LEFT JOIN profile_insights pi ON gp.id = pi.profile_id
     ORDER BY gp.${sortCol} ${orderDir}
@@ -180,7 +229,8 @@ const getProfileByUsername = async (username) => {
     SELECT
       gp.*, pi.top_language, pi.language_diversity_count, pi.total_stars_received,
       pi.total_forks_received, pi.original_repos_count, pi.forked_repos_count,
-      pi.avg_stars_per_repo, pi.account_age_days, pi.activity_score, pi.influence_score
+      pi.avg_stars_per_repo, pi.account_age_days, pi.activity_score, pi.influence_score,
+      pi.combined_score, pi.developer_tier, pi.developer_badge, pi.tier_description
     FROM github_profiles gp
     LEFT JOIN profile_insights pi ON gp.id = pi.profile_id
     WHERE gp.username = ?
@@ -259,7 +309,8 @@ const compareProfiles = async (usernames) => {
     SELECT
       gp.username, gp.name, gp.public_repos, gp.followers, gp.following,
       pi.top_language, pi.total_stars_received, pi.activity_score,
-      pi.influence_score, pi.account_age_days, pi.language_diversity_count
+      pi.influence_score, pi.account_age_days, pi.language_diversity_count,
+      pi.developer_tier, pi.developer_badge, pi.combined_score
     FROM github_profiles gp
     LEFT JOIN profile_insights pi ON gp.id = pi.profile_id
     WHERE gp.username IN (${placeholders})
@@ -267,7 +318,45 @@ const compareProfiles = async (usernames) => {
   return profiles;
 };
 
+/**
+ * Get profiles filtered by developer tier
+ */
+const getProfilesByTier = async (tier) => {
+  const validTiers = ['BEGINNER', 'RISING_STAR', 'INTERMEDIATE', 'ADVANCED', 'EXPERT', 'LEGEND'];
+  if (!validTiers.includes(tier.toUpperCase())) {
+    throw new Error(`Invalid tier. Valid tiers: ${validTiers.join(', ')}`);
+  }
+  const profiles = await query(`
+    SELECT
+      gp.username, gp.name, gp.avatar_url, gp.profile_url,
+      gp.public_repos, gp.followers,
+      pi.developer_tier, pi.developer_badge, pi.combined_score,
+      pi.top_language, pi.total_stars_received, pi.activity_score
+    FROM github_profiles gp
+    JOIN profile_insights pi ON gp.id = pi.profile_id
+    WHERE pi.developer_tier = ?
+    ORDER BY pi.combined_score DESC
+  `, [tier.toUpperCase()]);
+  return profiles;
+};
+
+/**
+ * Check if a profile is stale (analyzed more than 1 hour ago)
+ * Returns true if needs refresh, false if still fresh
+ */
+const isProfileStale = async (username, maxAgeMinutes = 60) => {
+  const [profile] = await query(
+    'SELECT analyzed_at FROM github_profiles WHERE username = ?',
+    [username]
+  );
+  if (!profile) return null; // Not found at all
+  const ageMs = Date.now() - new Date(profile.analyzed_at).getTime();
+  const ageMinutes = ageMs / (1000 * 60);
+  return ageMinutes > maxAgeMinutes;
+};
+
 module.exports = {
   upsertProfile, getAllProfiles, getProfileByUsername,
-  deleteProfile, getStats, compareProfiles
+  deleteProfile, getStats, compareProfiles,
+  getProfilesByTier, isProfileStale
 };
